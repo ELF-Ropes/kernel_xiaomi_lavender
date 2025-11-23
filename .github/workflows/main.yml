@@ -14,11 +14,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
 
-      - name: Set Beijing Timezone
-        uses: szenius/set-timezone@v1.2
-        with:
-          timezoneLinux: "Asia/Shanghai"
-
       - name: Set SWAP To 5GiB
         uses: pierotofy/set-swap-space@master
         with:
