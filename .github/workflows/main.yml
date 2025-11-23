@@ -1,0 +1,73 @@
+name: Build ELF Kernel
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+        LOCALVERSIONNAME:
+            description: 'Kernel Local Version Name'
+            required: true
+            default: '' 
+
+jobs:
+  build:
+    name: Build ELF Kernel by ${{ github.actor }}
+    runs-on: ubuntu-22.04
+    steps:
+
+      - name: Set Beijing Timezone
+        uses: szenius/set-timezone@v1.2
+        with:
+          timezoneLinux: "Asia/Shanghai"
+
+      - name: Set SWAP To 5GiB
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 5
+
+      - name: Clean Useless Files
+        run: |
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          
+      - name: Get Branch Name
+        id: branch-names
+        uses: tj-actions/branch-names@v8
+
+      - name: Initialize Compilation Environment
+        run: |
+          sudo apt-get update
+          sudo apt install python2
+          sudo apt-get install git automake flex lzop bison gperf build-essential zip curl zlib1g-dev g++-multilib gcc-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler python3 ccache git-lfs gnupg imagemagick libelf-dev libncurses5-dev libsdl1.2-dev rsync adb fastboot libstdc++6 -y
+          echo "BUILD_TIME=$(TZ=Asia/Shanghai date "+%Y%m%d%H%M")" >> $GITHUB_ENV
+          
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.branch-names.outputs.current_branch }}
+
+      - name: Get Toolchain
+        run: |
+          git clone https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone.git --depth 1 $GITHUB_WORKSPACE/toolchain/llvm
+          
+      - name: Build Kernel
+        run: |
+          export ARCH="arm64"
+          export SUBARCH="arm64"
+          export PATH="$GITHUB_WORKSPACE/toolchain/llvm/bin:/usr/bin:$PATH"
+          export CC="clang"
+          export LLVM=1
+          export LLVM_IAS=1
+          export CLANG_TRIPLE="aarch64-linux-gnu-"
+          export CROSS_COMPILE="aarch64-linux-gnu-"
+          make O=out lavender_defconfig
+          make -j$(nproc --all) O=out
+
+
+       run: |
+          cp out/arch/arm64/boot/Image.gz android/Installer/
+          
+      - name: Upload Kernel Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mido-EK-${{ github.event.inputs.LOCALVERSIONNAME }}-Installer-${{ env.BUILD_TIME }}
+          path: android/Installer/*
